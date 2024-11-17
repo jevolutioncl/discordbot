@@ -149,7 +149,7 @@ class FichaCog(commands.Cog):
 
         await channel.send("Vamos a comenzar a crear tu ficha. Puedes escribir 'cancelar' en cualquier momento para detener el proceso.")
 
-        await channel.send("¿Cuál es tu nombre y apellido? (Formato: Nombre_Apellido)")
+        await channel.send("¿Cuál es tu nombre y apellido? (Formato: Nombre_Apellido po weta)")
         while True:
             nombre_apellido = await self.bot.wait_for('message', check=check)
             if nombre_apellido.content.lower() == "cancelar":
