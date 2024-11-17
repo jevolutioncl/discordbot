@@ -1,6 +1,11 @@
 import discord
 from discord.ext import commands
 import os
+from dotenv import load_dotenv
+
+# Carga el token del archivo .env
+load_dotenv()
+TOKEN = os.getenv('DISCORD_TOKEN')
 
 intents = discord.Intents.default()
 intents.messages = True
@@ -29,7 +34,7 @@ async def reload(ctx, extension):
 
 async def main():
     await load_extensions()
-    await bot.start('TOKENBOT')
+    await bot.start(TOKEN)
 
 import asyncio
 asyncio.run(main())
