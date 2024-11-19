@@ -15,6 +15,7 @@ class FichaCog(commands.Cog):
         self.ficha_message_id = None
         self.load_data()
 
+    # Funciones para cargar y guardar datos de forma persistente
     def load_data(self):
         if os.path.exists('fichas_data.json'):
             with open('fichas_data.json', 'r') as f:
@@ -29,6 +30,7 @@ class FichaCog(commands.Cog):
                 'ficha_message_id': self.ficha_message_id
             }, f)
 
+    # Clase para los botones de aceptar y rechazar
     class ApprovalView(View):
         def __init__(self, user_id, embed, cog):
             super().__init__()
@@ -78,6 +80,7 @@ class FichaCog(commands.Cog):
 
             self.stop()
 
+    # Vista para el botón de creación de ficha
     class CreateFichaView(View):
         def __init__(self, bot):
             super().__init__()
@@ -88,6 +91,7 @@ class FichaCog(commands.Cog):
             await interaction.response.send_message("Vamos a comenzar a crear tu ficha en privado.", ephemeral=True)
             await self.bot.get_cog('FichaCog').create_profile(interaction.user)
 
+    # Método para enviar el mensaje con el botón de creación de ficha y guardar el ID
     async def ensure_ficha_message(self):
         ficha_channel = self.bot.get_channel(self.ID_DEL_CANAL_CREAR_FICHAS)
         if ficha_channel:
@@ -99,7 +103,7 @@ class FichaCog(commands.Cog):
                 "Se te pedirá la siguiente información:\n"
                 "- **Nombre y apellido** (Formato: Nombre_Apellido)\n"
                 "- **Apodo**\n"
-                "- **Edad** (entre 14 y 100 años)\n"
+                "- **Edad** (entre 14 y 80 años)\n"
                 "- **Número de teléfono**\n"
                 "- **Coches** (puedes listar varios separados por comas)\n"
                 "- **Link del PCU del servidor**\n"
@@ -141,91 +145,105 @@ class FichaCog(commands.Cog):
         await ctx.send("Vamos a comenzar la creación de tu ficha en privado.")
         await self.create_profile(ctx.author)
 
+    # Función auxiliar para solicitar y validar entradas
+    async def ask_for_input(self, channel, user, field_name, prompt, validation_func=None, optional=False, cancel_message="Proceso cancelado."):
+        def check(m):
+            return m.author == user and isinstance(m.channel, discord.DMChannel)
+        
+        await channel.send(prompt)
+        while True:
+            response = await self.bot.wait_for('message', check=check)
+            content = response.content.strip()
+            if content.lower() == "cancelar":
+                await channel.send(cancel_message)
+                return None  # Indica que el proceso fue cancelado
+            if optional and content.lower() == "ninguno":
+                return None
+            if validation_func:
+                valid = validation_func(content)
+                if valid:
+                    return content
+                else:
+                    await channel.send(f"Entrada inválida para **{field_name}**. Intenta nuevamente.")
+            else:
+                return content
+
     async def create_profile(self, user, modificar=False):
         channel = await user.create_dm()
 
-        def check(m):
-            return m.author == user and isinstance(m.channel, discord.DMChannel)
+        # Validaciones para cada campo
+        def validate_nombre_apellido(value):
+            return re.match(r"^[A-Za-z]+_[A-Za-z]+$", value)
 
+        def validate_edad(value):
+            return value.isdigit() and 14 <= int(value) <= 80
+
+        def validate_telefono(value):
+            return value.isdigit()
+
+        def validate_link(value):
+            return re.match(r"^https?://", value)
+
+        # Informar al usuario que puede cancelar en cualquier momento
         await channel.send("Vamos a comenzar a crear tu ficha. Puedes escribir 'cancelar' en cualquier momento para detener el proceso.")
 
-        await channel.send("¿Cuál es tu nombre y apellido? (Formato: Nombre_Apellido po weta)")
-        while True:
-            nombre_apellido = await self.bot.wait_for('message', check=check)
-            if nombre_apellido.content.lower() == "cancelar":
-                await channel.send("Proceso de creación de ficha cancelado.")
-                return
-            if re.match(r"^[A-Za-z]+_[A-Za-z]+$", nombre_apellido.content):
-                break
-            else:
-                await channel.send("Formato incorrecto. Asegúrate de usar el formato: Nombre_Apellido")
-
-        await channel.send("¿Cuál es tu apodo?")
-        apodo = await self.bot.wait_for('message', check=check)
-        if apodo.content.lower() == "cancelar":
-            await channel.send("Proceso de creación de ficha cancelado.")
+        # Solicitar y validar cada campo utilizando la función auxiliar
+        nombre_apellido = await self.ask_for_input(
+            channel, user, "Nombre y apellido", "¿Cuál es tu nombre y apellido? (Formato: Nombre_Apellido)",
+            validation_func=validate_nombre_apellido
+        )
+        if nombre_apellido is None:
             return
 
-        await channel.send("¿Cuál es tu edad? (Debe estar entre 14 y 80)")
-        while True:
-            edad = await self.bot.wait_for('message', check=check)
-            if edad.content.lower() == "cancelar":
-                await channel.send("Proceso de creación de ficha cancelado.")
-                return
-            if edad.content.isdigit() and 14 <= int(edad.content) <= 80:
-                break
-            else:
-                await channel.send("Por favor, ingresa un número válido para la edad entre 14 y 80.")
-
-        await channel.send("¿Cuál es tu número de teléfono? (Debe ser un número)")
-        while True:
-            telefono = await self.bot.wait_for('message', check=check)
-            if telefono.content.lower() == "cancelar":
-                await channel.send("Proceso de creación de ficha cancelado.")
-                return
-            if telefono.content.isdigit():
-                break
-            else:
-                await channel.send("Por favor, ingresa un número válido para el teléfono.")
-
-        await channel.send("¿Cuáles son tus coches? (Puedes separar los coches con comas si tienes más de uno)")
-        coches = await self.bot.wait_for('message', check=check)
-        if coches.content.lower() == "cancelar":
-            await channel.send("Proceso de creación de ficha cancelado.")
+        apodo = await self.ask_for_input(
+            channel, user, "Apodo", "¿Cuál es tu apodo?"
+        )
+        if apodo is None:
             return
-        
-        await channel.send("Ingresa el link del PCU del servidor")
-        while True:
-            link_pcu = await self.bot.wait_for('message', check=check)
-            if link_pcu.content.lower() == "cancelar":
-                await channel.send("Proceso de creación de ficha cancelado.")
-                return
-            if re.match(r"^https?://", link_pcu.content):
-                break
-            else:
-                await channel.send("Por favor, ingresa un link válido para el PCU.")
 
-        await channel.send("Ingresa el link del avatar (opcional, envía 'ninguno' si no deseas agregarlo)")
-        while True:
-            avatar = await self.bot.wait_for('message', check=check)
-            if avatar.content.lower() == "cancelar":
-                await channel.send("Proceso de creación de ficha cancelado.")
-                return
-            if avatar.content.lower() == "ninguno" or re.match(r"^https?://", avatar.content):
-                break
-            else:
-                await channel.send("Por favor, ingresa un link válido o envía 'ninguno' si no deseas agregar un avatar.")
+        edad = await self.ask_for_input(
+            channel, user, "Edad", "¿Cuál es tu edad? (Debe estar entre 14 y 80)",
+            validation_func=validate_edad
+        )
+        if edad is None:
+            return
 
-        avatar_link = None if avatar.content.lower() == "ninguno" else avatar.content
+        telefono = await self.ask_for_input(
+            channel, user, "Teléfono", "¿Cuál es tu número de teléfono? (Debe ser un número)",
+            validation_func=validate_telefono
+        )
+        if telefono is None:
+            return
+
+        coches = await self.ask_for_input(
+            channel, user, "Coches", "¿Cuáles son tus coches? (Puedes separar los coches con comas si tienes más de uno)"
+        )
+        if coches is None:
+            return
+
+        link_pcu = await self.ask_for_input(
+            channel, user, "Link del PCU", "Ingresa el link del PCU del servidor",
+            validation_func=validate_link
+        )
+        if link_pcu is None:
+            return
+
+        avatar_link = await self.ask_for_input(
+            channel, user, "Avatar", "Ingresa el link del avatar (opcional, envía 'ninguno' si no deseas agregarlo)",
+            validation_func=validate_link,
+            optional=True
+        )
+        if avatar_link is None:
+            avatar_link = None
 
         # Crear el embed de la ficha
-        embed = discord.Embed(title=f"Ficha de {nombre_apellido.content}", color=discord.Color.orange())
-        embed.add_field(name="Nombre", value=nombre_apellido.content, inline=False)
-        embed.add_field(name="Apodo", value=apodo.content, inline=True)
-        embed.add_field(name="Edad", value=f"{edad.content} años", inline=True)
-        embed.add_field(name="Teléfono", value=telefono.content, inline=True)
-        embed.add_field(name="Coches", value=coches.content, inline=False)
-        embed.add_field(name="Link PCU", value=link_pcu.content, inline=False)
+        embed = discord.Embed(title=f"Ficha de {nombre_apellido}", color=discord.Color.orange())
+        embed.add_field(name="Nombre", value=nombre_apellido, inline=False)
+        embed.add_field(name="Apodo", value=apodo, inline=True)
+        embed.add_field(name="Edad", value=f"{edad} años", inline=True)
+        embed.add_field(name="Teléfono", value=telefono, inline=True)
+        embed.add_field(name="Coches", value=coches, inline=False)
+        embed.add_field(name="Link PCU", value=link_pcu, inline=False)
         embed.add_field(name="Bleeter", value=user.mention, inline=False)
 
         if avatar_link:
@@ -234,12 +252,12 @@ class FichaCog(commands.Cog):
             embed.description = "Pendiente de aprobación"
 
         self.fichas[str(user.id)] = {
-            "nombre_apellido": nombre_apellido.content,
-            "apodo": apodo.content,
-            "edad": edad.content,
-            "telefono": telefono.content,
-            "coches": coches.content.split(','),
-            "link_pcu": link_pcu.content,
+            "nombre_apellido": nombre_apellido,
+            "apodo": apodo,
+            "edad": edad,
+            "telefono": telefono,
+            "coches": [coche.strip() for coche in coches.split(',')],
+            "link_pcu": link_pcu,
             "avatar": avatar_link
         }
         self.save_data()  # Guarda la ficha en el archivo
@@ -257,7 +275,7 @@ class FichaCog(commands.Cog):
             if public_channel:
                 async for message in public_channel.history(limit=200):
                     if message.embeds:
-                        if message.embeds[0].title == f"Ficha de {nombre_apellido.content}":
+                        if message.embeds[0].title == f"Ficha de {nombre_apellido}":
                             await message.edit(embed=embed)
                             await channel.send("Tu ficha ha sido actualizada en el canal público.")
                             break
@@ -269,22 +287,34 @@ class FichaCog(commands.Cog):
     async def modify_profile(self, admin_user, target_user, ficha):
         channel = await admin_user.create_dm()
 
+        def validate_nombre_apellido(value):
+            return re.match(r"^[A-Za-z]+_[A-Za-z]+$", value)
+
+        def validate_edad(value):
+            return value.isdigit() and 14 <= int(value) <= 80
+
+        def validate_telefono(value):
+            return value.isdigit()
+
+        def validate_link(value):
+            return re.match(r"^https?://", value)
+
         def check(m):
             return m.author == admin_user and isinstance(m.channel, discord.DMChannel)
 
         await channel.send(f"Vamos a modificar la ficha de {ficha['nombre_apellido']}. Puedes escribir 'cancelar' en cualquier momento para detener el proceso.")
 
         campos = [
-            ("Nombre y apellido", "nombre_apellido"),
-            ("Apodo", "apodo"),
-            ("Edad", "edad"),
-            ("Teléfono", "telefono"),
-            ("Coches", "coches"),
-            ("Link del PCU", "link_pcu"),
-            ("Link del avatar", "avatar")
+            ("Nombre y apellido", "nombre_apellido", validate_nombre_apellido, False),
+            ("Apodo", "apodo", None, False),
+            ("Edad", "edad", validate_edad, False),
+            ("Teléfono", "telefono", validate_telefono, False),
+            ("Coches", "coches", None, False),
+            ("Link del PCU", "link_pcu", validate_link, False),
+            ("Link del avatar", "avatar", validate_link, True)
         ]
 
-        for campo_nombre, campo_clave in campos:
+        for campo_nombre, campo_clave, validation_func, optional in campos:
             current_value = ficha[campo_clave]
             if campo_clave == "avatar":
                 current_display = current_value if current_value else "Ninguno"
@@ -313,73 +343,38 @@ class FichaCog(commands.Cog):
                 continue  # Saltar al siguiente campo
 
             # Solicitar el nuevo valor para el campo
+            prompt = f"Ingrese el nuevo valor para **{campo_nombre}**:"
             if campo_clave == "nombre_apellido":
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}** (Formato: Nombre_Apellido):"
+                prompt += " (Formato: Nombre_Apellido)"
             elif campo_clave == "edad":
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}** (Debe estar entre 14 y 100):"
+                prompt += " (Debe estar entre 14 y 80)"
             elif campo_clave == "telefono":
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}** (Debe ser un número):"
-            elif campo_clave == "coches":
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}** (Puedes separar los coches con comas):"
+                prompt += " (Debe ser un número)"
             elif campo_clave == "link_pcu":
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}** (Debe ser un link válido):"
+                prompt += " (Debe ser un link válido)"
             elif campo_clave == "avatar":
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}** (Opcional, envía 'ninguno' si no deseas agregarlo):"
-            else:
-                prompt = f"Ingrese el nuevo valor para **{campo_nombre}**:"
+                prompt += " (Opcional, envía 'ninguno' si no deseas agregarlo)"
 
-            await channel.send(prompt)
-            while True:
-                respuesta = await self.bot.wait_for('message', check=check)
-                if respuesta.content.lower() == "cancelar":
-                    await channel.send("Proceso de modificación de ficha cancelado.")
-                    return
-                # Validaciones según el campo
-                if campo_clave == "nombre_apellido":
-                    if re.match(r"^[A-Za-z]+_[A-Za-z]+$", respuesta.content):
-                        ficha[campo_clave] = respuesta.content
-                        break
-                    else:
-                        await channel.send("Formato incorrecto. Asegúrate de usar el formato: Nombre_Apellido")
-                elif campo_clave == "edad":
-                    if respuesta.content.isdigit() and 14 <= int(respuesta.content) <= 100:
-                        ficha[campo_clave] = respuesta.content
-                        break
-                    else:
-                        await channel.send("Por favor, ingresa un número válido para la edad entre 14 y 100.")
-                elif campo_clave == "telefono":
-                    if respuesta.content.isdigit():
-                        ficha[campo_clave] = respuesta.content
-                        break
-                    else:
-                        await channel.send("Por favor, ingresa un número válido para el teléfono.")
-                elif campo_clave == "coches":
-                    ficha[campo_clave] = [coche.strip() for coche in respuesta.content.split(',')]
-                    break
-                elif campo_clave == "link_pcu":
-                    if re.match(r"^https?://", respuesta.content):
-                        ficha[campo_clave] = respuesta.content
-                        break
-                    else:
-                        await channel.send("Por favor, ingresa un link válido para el PCU.")
-                elif campo_clave == "avatar":
-                    if respuesta.content.lower() == "ninguno":
-                        ficha[campo_clave] = None
-                        break
-                    elif re.match(r"^https?://", respuesta.content):
-                        ficha[campo_clave] = respuesta.content
-                        break
-                    else:
-                        await channel.send("Por favor, ingresa un link válido o envía 'ninguno' si no deseas agregar el avatar.")
-                else:
-                    # Para cualquier otro campo sin validación específica
-                    ficha[campo_clave] = respuesta.content
-                    break
+            # Utilizar la función auxiliar para solicitar y validar la entrada
+            nuevo_valor = await self.ask_for_input(
+                channel, admin_user, campo_nombre, prompt,
+                validation_func=validation_func,
+                optional=optional,
+                cancel_message="Proceso de modificación de ficha cancelado."
+            )
+            if nuevo_valor is None and decision.content.lower() != "no":
+                return  # Se canceló el proceso
+
+            if campo_clave == "coches" and nuevo_valor is not None:
+                ficha[campo_clave] = [coche.strip() for coche in nuevo_valor.split(',')]
+            else:
+                ficha[campo_clave] = nuevo_valor
 
         # Actualizar los datos persistentes
         self.fichas[str(target_user.id)] = ficha
         self.save_data()
 
+        # Crear el embed actualizado
         embed = discord.Embed(title=f"Ficha de {ficha['nombre_apellido']}", color=discord.Color.orange())
         embed.add_field(name="Nombre", value=ficha['nombre_apellido'], inline=False)
         embed.add_field(name="Apodo", value=ficha['apodo'], inline=True)
@@ -392,6 +387,7 @@ class FichaCog(commands.Cog):
         if ficha['avatar']:
             embed.set_thumbnail(url=ficha['avatar'])
 
+        # Actualizar el embed en el canal público
         public_channel = self.bot.get_channel(self.ID_DEL_CANAL_PUBLICO)
         if public_channel:
             async for message in public_channel.history(limit=200):
@@ -405,5 +401,6 @@ class FichaCog(commands.Cog):
         else:
             await channel.send("No se ha podido encontrar el canal público.")
 
+# Función para cargar el cog
 async def setup(bot):
     await bot.add_cog(FichaCog(bot))
