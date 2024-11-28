@@ -30,7 +30,6 @@ class FichaCog(commands.Cog):
                 'ficha_message_id': self.ficha_message_id
             }, f)
 
-    # Clase para los botones de aceptar y rechazar
     class ApprovalView(View):
         def __init__(self, user_id, embed, cog):
             super().__init__()
@@ -145,7 +144,6 @@ class FichaCog(commands.Cog):
         await ctx.send("Vamos a comenzar la creación de tu ficha en privado.")
         await self.create_profile(ctx.author)
 
-    # Función auxiliar para solicitar y validar entradas
     async def ask_for_input(self, channel, user, field_name, prompt, validation_func=None, optional=False, cancel_message="Proceso cancelado."):
         def check(m):
             return m.author == user and isinstance(m.channel, discord.DMChannel)
@@ -171,7 +169,6 @@ class FichaCog(commands.Cog):
     async def create_profile(self, user, modificar=False):
         channel = await user.create_dm()
 
-        # Validaciones para cada campo
         def validate_nombre_apellido(value):
             return re.match(r"^[A-Za-z]+_[A-Za-z]+$", value)
 
@@ -184,10 +181,8 @@ class FichaCog(commands.Cog):
         def validate_link(value):
             return re.match(r"^https?://", value)
 
-        # Informar al usuario que puede cancelar en cualquier momento
         await channel.send("Vamos a comenzar a crear tu ficha. Puedes escribir 'cancelar' en cualquier momento para detener el proceso.")
 
-        # Solicitar y validar cada campo utilizando la función auxiliar
         nombre_apellido = await self.ask_for_input(
             channel, user, "Nombre y apellido", "¿Cuál es tu nombre y apellido? (Formato: Nombre_Apellido)",
             validation_func=validate_nombre_apellido
